@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"blender.executables": [
+			{ "path": "E:/SteamLibrary/steamapps/common/Blender/blender.exe" }
+		],
+		"blender.addon.reloadOnSave": true,
+		"python.analysis.diagnosticSeverityOverrides": {
+			"reportInvalidTypeForm": "none"
+		},
+		"explorer.sortOrder": "filesFirst"
+	}
+}
