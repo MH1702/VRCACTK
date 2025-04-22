@@ -12,6 +12,7 @@
 		"python.analysis.diagnosticSeverityOverrides": {
 			"reportInvalidTypeForm": "none"
 		},
-		"explorer.sortOrder": "filesFirst"
+		"explorer.sortOrder": "filesFirst",
+		"explorer.excludeGitIgnore": true
 	}
 }
