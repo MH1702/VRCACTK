@@ -1,0 +1,65 @@
+name: Build and release extension
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Blender 4.2.0 and verify its checksum
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxrender1 libxi6 libxkbcommon0 libsm6 libgl1
+          cd "$RUNNER_TEMP"
+          base=https://download.blender.org/release/Blender4.2
+          curl --fail --location --retry 3 -O "$base/blender-4.2.0-linux-x64.tar.xz"
+          curl --fail --location --retry 3 -O "$base/blender-4.2.0.sha256"
+          grep ' blender-4.2.0-linux-x64.tar.xz$' blender-4.2.0.sha256 | sha256sum --check --strict
+          tar -xf blender-4.2.0-linux-x64.tar.xz
+          echo "$RUNNER_TEMP/blender-4.2.0-linux-x64" >> "$GITHUB_PATH"
+      - name: Build and validate package
+        shell: bash
+        run: |
+          args=()
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            args+=(--tag "$GITHUB_REF_NAME")
+          fi
+          python scripts/build_release.py "${args[@]}"
+      - name: Test packaged extension in Blender
+        run: blender --background --factory-startup --python-exit-code 1 --python scripts/smoke_test.py -- dist/vrcactk-*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vrcactk-extension
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vrcactk-extension
+          path: dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" dist/*.zip --verify-tag --title "VRCACTK $RELEASE_TAG" --generate-notes

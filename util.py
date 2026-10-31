@@ -1,5 +1,5 @@
 from enum import StrEnum
-import typing
+from typing import TypeVar, cast, Protocol
 import bpy
 
 class HumanoidBone(StrEnum):
@@ -64,14 +64,14 @@ class HumanoidBone(StrEnum):
         return [e.value for e in cls]
 
 class HumanoidBoneCategory(StrEnum):
-    Body = "Body",
-    Head = "Head",
-    LeftLeg = "Left Leg",
-    LeftArm = "Left Arm",
-    LeftHand = "Left Hand",
-    RightLeg = "Right Leg",
-    RightArm = "Right Arm",
-    RightHand = "Right Hand",
+    Body = "Body"
+    Head = "Head"
+    LeftLeg = "Left Leg"
+    LeftArm = "Left Arm"
+    LeftHand = "Left Hand"
+    RightLeg = "Right Leg"
+    RightArm = "Right Arm"
+    RightHand = "Right Hand"
 
     @classmethod
     def list(cls):
@@ -579,23 +579,25 @@ HUMANOID_BONES_BY_CATEGORY = {
     ],
 }
 
-def get_armature_by_object_name(context: bpy.types.Context, armature_obj_name: str) -> bpy.types.Armature:
-    armature_obj = context.scene.objects.get(armature_obj_name)
 
-    if not armature_obj:
-        raise Exception("The specificed object could not be found: ", armature_obj_name)
+class Registerable(Protocol):
+    def register_me(cls) -> None: ... # type: ignore
+    def unregister_me(cls) -> None: ... # type: ignore
 
-    if armature_obj.type != 'ARMATURE':
-        raise Exception("The specificed object is not an armature: ", armature_obj)
+T = TypeVar("T", bound=type)
 
-    return armature_obj.data
+registry: dict[str, "Registerable"] = {}
 
-class Registerable(typing.Protocol):
-    def register_me() -> None: ...
-    def unregister_me() -> None: ...
+def registerme(cls: T) -> T:
+    registry.pop(cls.__name__, None)
+    registry[cls.__name__] = cast("Registerable", cls)
+    return cls
 
-registry: dict[str, Registerable] = {}
 
-def registerme(registerable: Registerable) -> Registerable:
-    registry[registerable.__name__] = registerable
-    return registerable
+# def get_armature_by_object_name(context: bpy.types.Context, armature_obj_name: str) -> bpy.types.Armature | None:
+#     if context is None or context.scene is None:
+#         return None
+#     obj = context.scene.objects.get(armature_obj_name)
+#     if obj is None or obj.type != "ARMATURE":
+#         return None
+#     return obj.data

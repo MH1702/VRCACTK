@@ -13,6 +13,6 @@
 			"reportInvalidTypeForm": "none"
 		},
 		"explorer.sortOrder": "filesFirst",
-		"explorer.excludeGitIgnore": true
+		"explorer.excludeGitIgnore": true,
 	}
 }

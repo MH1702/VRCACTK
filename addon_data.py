@@ -1,229 +1,197 @@
 import bpy
 
-from .util import HUMANOID_BONE_DICT, HumanoidBone, registerme
+from .util import registerme
+from .typing_helpers import get_scene_data
+
+
 
 @registerme
-class VRCBTK_PropertyGroups_SceneData(bpy.types.PropertyGroup):
+class VRCACTK_SceneData(bpy.types.PropertyGroup):
     @classmethod
     def register_me(cls) -> None:
         bpy.utils.register_class(cls)
-        bpy.types.Scene.VRCBTK = bpy.props.PointerProperty(type=cls)
+        setattr(bpy.types.Scene, "VRCACTK", bpy.props.PointerProperty(type=cls))
     
+    @classmethod
+    def unregister_me(cls) -> None:
+        if hasattr(bpy.types.Scene, "VRCACTK"):
+            delattr(bpy.types.Scene, "VRCACTK")
+        bpy.utils.unregister_class(cls)
+
+
+    selected_armature_obj: bpy.props.PointerProperty(type=bpy.types.Object)
+
+    def update_selected_armature(self, context: bpy.types.Context):
+        scene = context.scene
+        if scene is None:
+            return
+        scene_data = get_scene_data(context)
+        scene_data.selected_armature_obj = scene.objects.get(self.armature_dropdown)
+
+    armature_dropdown: bpy.props.EnumProperty(
+        name="Armature",
+        items=lambda _, context: [
+            (obj.name, obj.name, "", "ARMATURE_DATA", i)
+            for i, obj in enumerate((context.scene.objects if context is not None and context.scene is not None else []))
+            if obj.type == 'ARMATURE'
+        ],
+        update=update_selected_armature,
+    )
+
+
+@registerme
+class VRCACTK_ReportEvidence(bpy.types.PropertyGroup):
+    @classmethod
+    def register_me(cls) -> None:
+        bpy.utils.register_class(cls)
+
     @classmethod
     def unregister_me(cls) -> None:
         bpy.utils.unregister_class(cls)
 
-    @classmethod
-    def get_selected_armature_obj(cls, context: bpy.types.Context) -> bpy.types.Object | None: 
-        selected_armature_obj_name = context.scene.VRCBTK.selected_armature
-        selected_obj = bpy.data.objects.get(selected_armature_obj_name)
-        if selected_obj is not None and selected_obj.type == 'ARMATURE':
-            return selected_obj
-        else: 
-            return None
+    key: bpy.props.StringProperty(name="Evidence Key", default="")
+    label: bpy.props.StringProperty(name="Evidence Label", default="")
 
-    selected_armature: bpy.props.EnumProperty(
-        name="Selected Armature",
-        description="Select the target armature for VRChat Blender Toolkit",
-        items=lambda self, context: [
-            (
-                armature.name,
-                armature.name,
-                f"Select the '{armature.name}' armature",
-                'ARMATURE_DATA',
-                i
-            )
-            for i, armature in enumerate(
-                [obj for obj in context.scene.objects if obj.type == 'ARMATURE']
-            )
-        ] if context and context.scene else []
-    )
 
 @registerme
-class VRCBTK_Operators_SelectBone(bpy.types.Operator):
-    bl_idname = "vrcbtk.select_bone"
-    bl_label = "Select Bone"
-    bl_options = {"UNDO"}
-
-    @classmethod
-    def register_me(cls):
-        bpy.utils.register_class(cls)
-
-    @classmethod
-    def unregister_me(cls):
-        bpy.utils.unregister_class(cls)
-
-    armature_bone_name: bpy.props.StringProperty()
-
-    def execute(self, context):
-        if self.armature_bone_name == "None":
-            return {"CANCELLED"}
-        
-        armature_obj = VRCBTK_PropertyGroups_SceneData.get_selected_armature_obj(context)
-        
-        if armature_obj:
-            context.view_layer.objects.active = armature_obj
-            bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.select_all(action='DESELECT')
-            armature_obj.select_set(True)
-
-            if self.armature_bone_name in armature_obj.data.bones:
-                bone = armature_obj.data.bones[self.armature_bone_name]
-                for bone_collection in armature_obj.data.collections:
-                    if bone.name in bone_collection.bones and not bone_collection.is_visible:
-                        bone_collection.is_visible = True
-                        
-            bpy.ops.object.mode_set(mode='EDIT')
-
-            for edit_bone in armature_obj.data.edit_bones:
-                state = edit_bone.name == self.armature_bone_name
-                edit_bone.select = state
-                edit_bone.select_head = state
-                edit_bone.select_tail = state
-
-        return {'FINISHED'}
-    
-@registerme
-class VRCBTK_Operators_ResetBoneMappingSubtree(bpy.types.Operator):
-    bl_idname = "vrcbtk.reset_bone_mapping_subtree"
-    bl_label = "Reset bone mapping subtree"
-    bl_options = {"UNDO"}
-
-    @classmethod
-    def register_me(cls):
-        bpy.utils.register_class(cls)
-
-    @classmethod
-    def unregister_me(cls):
-        bpy.utils.unregister_class(cls)
-
-    humanoid_bone_name: bpy.props.StringProperty()
-
-    def execute(self, context):
-        armature_obj = VRCBTK_PropertyGroups_SceneData.get_selected_armature_obj(context)
-
-        humanoid_bone = HUMANOID_BONE_DICT.get(self.humanoid_bone_name)
-        bones_to_reset = [bone_name for (bone_name, properties) in HUMANOID_BONE_DICT.items() if (properties["path"] == humanoid_bone["path"] and properties["depth"] >= humanoid_bone["depth"]) or properties["path"].startswith(f"{humanoid_bone['path']}/")]
-
-        for b in bones_to_reset:
-            armature_obj.data.VRCBTK.get_mapping(b).armature_bone_name = "None"
-       
-        return {'FINISHED'}
-    
-@registerme
-class VRCBTK_PropertyGroups_ArmatureData_HumanoidBoneMapping(bpy.types.PropertyGroup):
+class VRCACTK_ReportIssue(bpy.types.PropertyGroup):
     @classmethod
     def register_me(cls) -> None:
         bpy.utils.register_class(cls)
-    
+
     @classmethod
     def unregister_me(cls) -> None:
         bpy.utils.unregister_class(cls)
 
-    humanoid_bone_name: bpy.props.StringProperty(
-        name="Humanoid Bone",
-        description="Name of the bone as per Unity's definition of 'Humanoid Bones'",
-    )
-
-    armature_bone_name: bpy.props.EnumProperty(
-        name="Armature Bone",
-        description="Name of the bone in the armature",
-        items=lambda self, _: [
-            ("None", "-", "No selection"), # Add an empty option as the default - note that blender throws a warning when the identifier itself is an empty string, hence why we use "None"
-        ] + [
-            (
-                bone.name,
-                bone.name,
-                f"Bone: {bone.name}"
-            )
-            for bone in self.id_data.bones 
+    issue_type: bpy.props.EnumProperty(
+        name="Issue Type",
+        items=[
+            ("DEGENERATE_GEOMETRY", "Degenerate Geometry", ""),
+            ("LOOSE_GEOMETRY", "Loose Geometry", ""),
+            ("UNWEIGHTED_VERTICES", "Unweighted Vertices", ""),
+            ("UNUSED_SHAPE_KEY", "Unused Shape Key", ""),
+            ("UNUSED_VERTEX_GROUP", "Unused Vertex Group", ""),
+            ("UNUSED_MATERIAL_SLOT", "Unused Material Slot", ""),
+            ("MULTIPLE_UV_MAPS", "Multiple UV Maps", ""),
+            ("UNUSED_BONE", "Unused Bone", ""),
+            ("UNCONNECTED_BONE_CHAIN", "Unconnected Bone Chain", ""),
+            ("UNAPPLIED_TRANSFORMS", "Unapplied Transforms", ""),
+            ("SHAPE_KEY_BASIS_MISMATCH", "Shape Key Basis Mismatch", ""),
         ],
     )
+    category: bpy.props.StringProperty(name="Category", default="")
+    description: bpy.props.StringProperty(name="Description", default="")
+    target_object: bpy.props.PointerProperty(type=bpy.types.Object)
+    object_name: bpy.props.StringProperty(name="Object Name", default="")
+    item_name: bpy.props.StringProperty(name="Item Name", default="")
+    slot_index: bpy.props.IntProperty(name="Slot Index", default=-1)
+    evidence: bpy.props.CollectionProperty(type=VRCACTK_ReportEvidence)
+    has_auto_fix: bpy.props.BoolProperty(name="Has Auto Fix", default=False)
+    can_accept: bpy.props.BoolProperty(name="Can Accept as Intentional", default=True)
+    do_fix: bpy.props.BoolProperty(name="Apply Auto Fix", default=False)
 
-    def draw(self, layout: bpy.types.UILayout):
-        row = layout.row()
-
-        humnaoid_bone = HUMANOID_BONE_DICT.get(self.humanoid_bone_name)
-
-        row.label(text=f"{self.humanoid_bone_name}{'' if humnaoid_bone['required'] else '*'}")
-        row.prop(self, "armature_bone_name", text="")
-
-        has_selected = self.armature_bone_name != "None"
-
-        col = row.column()
-        col.enabled = has_selected
-
-        select_bone_op = col.operator(VRCBTK_Operators_SelectBone.bl_idname, text="", icon="RESTRICT_SELECT_OFF")
-        select_bone_op.armature_bone_name = self.armature_bone_name
-
-        col = row.column()
-        select_bone_op = col.operator(VRCBTK_Operators_ResetBoneMappingSubtree.bl_idname, text="", icon="X")
-        select_bone_op.humanoid_bone_name = self.humanoid_bone_name
 
 @registerme
-class VRCBTK_PropertyGroups_ArmatureData_OptionalBoneMapping(bpy.types.PropertyGroup):
+class VRCACTK_ReportDecision(bpy.types.PropertyGroup):
     @classmethod
     def register_me(cls) -> None:
         bpy.utils.register_class(cls)
-    
+
     @classmethod
     def unregister_me(cls) -> None:
         bpy.utils.unregister_class(cls)
 
-    humanoid_bone_name: bpy.props.StringProperty(
-        name="Humanoid Bone",
-        description="Name of the Humanoid Bone",
-    )
+    issue_type: bpy.props.StringProperty(name="Issue Type", default="")
+    category: bpy.props.StringProperty(name="Category", default="")
+    description: bpy.props.StringProperty(name="Description", default="")
+    target_object: bpy.props.PointerProperty(type=bpy.types.Object)
+    object_name: bpy.props.StringProperty(name="Object Name", default="")
+    item_name: bpy.props.StringProperty(name="Item Name", default="")
+    slot_index: bpy.props.IntProperty(name="Slot Index", default=-1)
+    accepted_items: bpy.props.CollectionProperty(type=VRCACTK_ReportEvidence)
+    note: bpy.props.StringProperty(name="Note", default="")
+    is_active: bpy.props.BoolProperty(name="Currently Applies", default=False)
 
-    has: bpy.props.BoolProperty()
-
-    def draw(self, layout: bpy.types.UILayout):
-        row = layout.row()
-
-        row.prop(self, "has", toggle=True, text=f"Has {self.humanoid_bone_name}?", expand=True)
 
 @registerme
-class VRCBTK_PropertyGroups_ArmatureData(bpy.types.PropertyGroup):
+class VRCACTK_ArmatureData(bpy.types.PropertyGroup):
     @classmethod
     def register_me(cls) -> None:
         bpy.utils.register_class(cls)
-        bpy.types.Armature.VRCBTK = bpy.props.PointerProperty(type=cls)
+        setattr(bpy.types.Armature, "VRCACTK", bpy.props.PointerProperty(type=cls))
     
     @classmethod
     def unregister_me(cls) -> None:
-        del bpy.types.Armature.VRCBTK
-        bpy.utils.unregister_class(cls) 
-    
-    def reset_bone_mapping(self):
-        """Add a new bone mapping to the collection."""
-        self.bone_map.clear()
-        for name in HumanoidBone.list():
-            item = self.bone_map.add()
-            item.humanoid_bone_name = name
+        if hasattr(bpy.types.Armature, "VRCACTK"):
+            delattr(bpy.types.Armature, "VRCACTK")
+        bpy.utils.unregister_class(cls)
 
-    def ensure_mappings(self):
-        if not self.optional_map:
-            for humanoid_bone in [humanoid_bone for humanoid_bone, params in HUMANOID_BONE_DICT.items() if not params["required"]]:
-                item = self.optional_map.add()
-                item.humanoid_bone_name = humanoid_bone
-                # TODO: Implement default value in params
-                item.has = False
+    def update_report_refresh(self, context: bpy.types.Context):
+        if not self.report_refresh:
+            return
+        try:
+            from . import util_operations
+            util_operations._populate_report_issues(context)
+        finally:
+            self.report_refresh = False
 
-        if not self.bone_map:
-            self.reset_bone_mapping()
-
-    optional_map: bpy.props.CollectionProperty(type=VRCBTK_PropertyGroups_ArmatureData_OptionalBoneMapping)
-
-    def get_optional_mapping(self, humanoid_bone_name: str):
-        return next(
-            (x for x in self.id_data.VRCBTK.optional_map if x.humanoid_bone_name == humanoid_bone_name),
-            None
-        )
-
-    bone_map: bpy.props.CollectionProperty(type=VRCBTK_PropertyGroups_ArmatureData_HumanoidBoneMapping)
-
-    def get_mapping(self, humanoid_bone_name: str):
-        return next(
-            (x for x in self.id_data.VRCBTK.bone_map if x.humanoid_bone_name == humanoid_bone_name),
-            None
-        )
+    report_issues: bpy.props.CollectionProperty(type=VRCACTK_ReportIssue)
+    report_decisions: bpy.props.CollectionProperty(type=VRCACTK_ReportDecision)
+    report_issue_index: bpy.props.IntProperty(name="Report Issue Index", default=0)
+    report_refresh: bpy.props.BoolProperty(
+        name="Analyze Issues",
+        default=False,
+        update=update_report_refresh,
+    )
+    report_has_analysis: bpy.props.BoolProperty(
+        name="Report Has Analysis",
+        default=False,
+    )
+    report_expand_loose_geometry: bpy.props.BoolProperty(
+        name="Loose Geometry",
+        default=False,
+    )
+    report_expand_degenerate_geometry: bpy.props.BoolProperty(
+        name="Degenerate Geometry",
+        default=False,
+    )
+    report_expand_unused_shape_keys: bpy.props.BoolProperty(
+        name="Unused Shape Keys",
+        default=False,
+    )
+    report_expand_unused_vertex_groups: bpy.props.BoolProperty(
+        name="Unused Vertex Groups",
+        default=False,
+    )
+    report_expand_unused_material_slots: bpy.props.BoolProperty(
+        name="Unused Material Slots",
+        default=False,
+    )
+    report_expand_multiple_uv_maps: bpy.props.BoolProperty(
+        name="Multiple UV Maps",
+        default=False,
+    )
+    report_expand_unused_bones: bpy.props.BoolProperty(
+        name="Unused Bones",
+        default=False,
+    )
+    report_expand_unconnected_bone_chains: bpy.props.BoolProperty(
+        name="Unconnected Bone Chains",
+        default=False,
+    )
+    report_expand_unapplied_transforms: bpy.props.BoolProperty(
+        name="Unapplied Transforms",
+        default=False,
+    )
+    report_expand_shape_key_basis_mismatch: bpy.props.BoolProperty(
+        name="Shape Key Basis Mismatch",
+        default=False,
+    )
+    report_expand_unweighted_vertices: bpy.props.BoolProperty(
+        name="Unweighted Vertices",
+        default=False,
+    )
+    report_expand_accepted_decisions: bpy.props.BoolProperty(
+        name="Accepted Decisions",
+        default=False,
+    )

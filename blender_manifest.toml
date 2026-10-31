@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+id = "vrcactk"
+version = "1.0.0"
+name = "VRCACTK"
+tagline = "Tools for VRChat avatar creation"
+maintainer = "MH1702"
+type = "add-on"
+website = "https://github.com/MH1702/VRCACTK"
+tags = ["Import-Export", "Rigging"]
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+files = "Import avatar models and export avatar files"
